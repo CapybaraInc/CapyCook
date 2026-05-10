@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CapyCook — Рецепты</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #fff8e7;
+            min-height: 100vh;
+        }
+        .header {
+            background: #f4a460;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header span { font-size: 40px; }
+        .search-box {
+            padding: 20px;
+            display: flex;
+            gap: 10px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 15px;
+            border: 3px solid #f4a460;
+            border-radius: 25px;
+            font-size: 18px;
+            outline: none;
+        }
+        .search-box button {
+            padding: 15px 25px;
+            background: #f4a460;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .search-box button:active { background: #d4893a; }
+        .recipes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .recipe-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+        .recipe-card:hover { transform: scale(1.03); }
+        .recipe-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .recipe-card .info {
+            padding: 15px;
+        }
+        .recipe-card h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .recipe-card p {
+            color: #666;
+            margin: 3px 0;
+        }
+        .recipe-card .badge {
+            display: inline-block;
+            background: #ffe0b2;
+            color: #e67e00;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 25px;
+            position: relative;
+        }
+        .modal-content img {
+            width: 100%;
+            border-radius: 10px;
+            max-height: 300px;
+            object-fit: cover;
+        }
+        .modal-content h2 { margin: 15px 0; color: #333; }
+        .modal-content h4 {
+            color: #f4a460;
+            margin: 10px 0;
+            font-size: 18px;
+        }
+        .modal-content ul {
+            padding-left: 20px;
+            margin: 10px 0;
+        }
+        .modal-content li { margin: 5px 0; color: #555; }
+        .modal-content p { color: #555; line-height: 1.6; }
+        .close-btn {
+            position: sticky;
+            top: 10px;
+            float: right;
+            font-size: 30px;
+            cursor: pointer;
+            color: #999;
+            background: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            text-align: center;
+            line-height: 40px;
+            z-index: 10;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+            font-size: 18px;
+        }
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+        }
+        .footer span { color: #f4a460; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <span>🐹</span> CapyCook
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Что готовим? Например: борщ, пицца..." onkeypress="if(event.key==='Enter')search()">
+        <button onclick="search()">🔍 Найти</button>
+    </div>
+
+    <div class="recipes" id="recipesList">
+        <div class="loading">Введи блюдо и нажми Найти 🔍</div>
+    </div>
+
+    <div class="footer">
+        Сделано в <span>CapyLab</span> 🧪
+    </div>
+
+    <!-- Модальное окно -->
+    <div class="modal" id="modal">
+        <div class="modal-content" id="modalContent">
+            <span class="close-btn" onclick="closeModal()">✕</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+<script>
+const API = 'https://www.themealdb.com/api/json/v1/1';
+
+async function search() {
+    const query = document.getElementById('searchInput').value.trim();
+    if (!query) return;
+    
+    document.getElementById('recipesList').innerHTML = '<div class="loading">🔍 Ищу рецепты...</div>';
+    
+    try {
+        const res = await fetch(`${API}/search.php?s=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        
+        if (!data.meals) {
+            document.getElementById('recipesList').innerHTML = 
+                '<div class="loading">😔 Ничего не найдено. Попробуй другое блюдо!</div>';
+            return;
+        }
+        
+        displayRecipes(data.meals);
+    } catch (e) {
+        document.getElementById('recipesList').innerHTML = 
+            '<div class="loading">❌ Ошибка загрузки. Проверь интернет!</div>';
+    }
+}
+
+function displayRecipes(meals) {
+    let html = '';
+    meals.forEach(meal => {
+        html += `
+            <div class="recipe-card" onclick="showRecipe('${meal.idMeal}')">
+                <img src="${meal.strMealThumb}/preview" alt="${meal.strMeal}">
+                <div class="info">
+                    <h3>${meal.strMeal}</h3>
+                    <span class="badge">${meal.strCategory}</span>
+                    <span class="badge">${meal.strArea}</span>
+                </div>
+            </div>
+        `;
+    });
+    document.getElementById('recipesList').innerHTML = html;
+}
+
+async function showRecipe(id) {
+    document.getElementById('modal').classList.add('active');
+    document.getElementById('modalBody').innerHTML = '<p>Загрузка...</p>';
+    
+    try {
+        const res = await fetch(`${API}/lookup.php?i=${id}`);
+        const data = await res.json();
+        const m = data.meals[0];
+        
+        let ingredients = '';
+        for (let i = 1; i <= 20; i++) {
+            const ing = m[`strIngredient${i}`];
+            const mes = m[`strMeasure${i}`];
+            if (ing && ing.trim()) {
+                ingredients += `<li>${ing} — ${mes}</li>`;
+            }
+        }
+        
+        document.getElementById('modalBody').innerHTML = `
+            <img src="${m.strMealThumb}" alt="${m.strMeal}">
+            <h2>${m.strMeal}</h2>
+            <span class="badge">${m.strCategory}</span>
+            <span class="badge">${m.strArea}</span>
+            <h4>📋 Ингредиенты:</h4>
+            <ul>${ingredients}</ul>
+            <h4>📝 Приготовление:</h4>
+            <p>${m.strInstructions}</p>
+            ${m.strYoutube ? `<p style="text-align:center;margin-top:15px"><a href="${m.strYoutube}" target="_blank" style="color:#f4a460;font-size:18px;">▶️ Смотреть видео-рецепт</a></p>` : ''}
+        `;
+    } catch (e) {
+        document.getElementById('modalBody').innerHTML = '<p>Ошибка загрузки рецепта</p>';
+    }
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+}
+
+// Закрытие по клику вне окна
+document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// Стартовые рецепты
+window.onload = function() {
+    document.getElementById('searchInput').value = 'суп';
+    search();
+};
+</script>
+
+</body>
+  </html>
